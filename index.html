@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Video Analyzer</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Space Grotesk', sans-serif; }
+    .gradient-bg {
+      background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glow-red {
+      box-shadow: 0 0 30px rgba(255, 0, 0, 0.2), 0 0 60px rgba(255, 0, 0, 0.1);
+    }
+    .pulse-dot {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .slide-up {
+      animation: slideUp 0.5s ease-out forwards;
+    }
+    .stat-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 0, 0, 0.3);
+    }
+  </style>
+  <style>body { box-sizing: border-box; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body class="h-full">
+  <div id="app" class="gradient-bg min-h-full w-full overflow-auto">
+   <div class="max-w-4xl mx-auto px-6 py-12"><!-- Header -->
+    <div class="text-center mb-10">
+     <div class="inline-flex items-center gap-3 mb-4">
+      <div class="w-12 h-12 rounded-xl bg-red-600 flex items-center justify-center glow-red">
+       <svg class="w-7 h-7 text-white" viewbox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+       </svg>
+      </div>
+      <h1 id="app-title" class="text-3xl font-bold text-white">YouTube Video Analyzer</h1>
+     </div>
+     <p class="text-gray-400 text-lg">Extract insights from any YouTube video</p>
+    </div><!-- Input Section -->
+    <div class="glass-card rounded-2xl p-6 mb-8"><label for="url-input" class="block text-sm font-medium text-gray-300 mb-3">Video URL</label>
+     <div class="flex gap-3"><input type="text" id="url-input" placeholder="Paste YouTube URL here..." class="flex-1 bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-white placeholder-gray-500 focus:outline-none focus:border-red-500/50 focus:ring-2 focus:ring-red-500/20 transition-all"> <button id="analyze-btn" class="px-8 py-4 bg-red-600 hover:bg-red-500 text-white font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 glow-red">
+       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+       </svg> Analyze </button>
+     </div>
+     <p id="error-message" class="text-red-400 text-sm mt-3 hidden"></p>
+    </div><!-- Results Section -->
+    <div id="results" class="hidden"><!-- Video Preview -->
+     <div class="glass-card rounded-2xl p-6 mb-6 slide-up">
+      <div class="flex gap-6">
+       <div id="thumbnail-container" class="w-80 h-44 rounded-xl bg-white/5 overflow-hidden flex-shrink-0 relative"><img id="thumbnail" class="w-full h-full object-cover" alt="Video thumbnail">
+        <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-1 rounded text-white text-xs font-medium" id="duration">
+         --:--
+        </div>
+       </div>
+       <div class="flex-1 min-w-0">
+        <h2 id="video-title" class="text-xl font-bold text-white mb-2 line-clamp-2">Video Title</h2>
+        <p id="channel-name" class="text-red-400 font-medium mb-3">Channel Name</p>
+        <p id="video-description" class="text-gray-400 text-sm line-clamp-3">Video description will appear here...</p>
+       </div>
+      </div>
+     </div><!-- Stats Grid -->
+     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="stat-card glass-card rounded-xl p-5 transition-all duration-200 slide-up" style="animation-delay: 0.1s">
+       <div class="flex items-center gap-3 mb-2">
+        <div class="w-10 h-10 rounded-lg bg-red-600/20 flex items-center justify-center">
+         <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /> <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+         </svg>
+        </div><span class="text-gray-400 text-sm">Views</span>
+       </div>
+       <p id="view-count" class="text-2xl font-bold text-white">--</p>
+      </div>
+      <div class="stat-card glass-card rounded-xl p-5 transition-all duration-200 slide-up" style="animation-delay: 0.15s">
+       <div class="flex items-center gap-3 mb-2">
+        <div class="w-10 h-10 rounded-lg bg-green-600/20 flex items-center justify-center">
+         <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+         </svg>
+        </div><span class="text-gray-400 text-sm">Likes</span>
+       </div>
+       <p id="like-count" class="text-2xl font-bold text-white">--</p>
+      </div>
+      <div class="stat-card glass-card rounded-xl p-5 transition-all duration-200 slide-up" style="animation-delay: 0.2s">
+       <div class="flex items-center gap-3 mb-2">
+        <div class="w-10 h-10 rounded-lg bg-blue-600/20 flex items-center justify-center">
+         <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+         </svg>
+        </div><span class="text-gray-400 text-sm">Comments</span>
+       </div>
+       <p id="comment-count" class="text-2xl font-bold text-white">--</p>
+      </div>
+      <div class="stat-card glass-card rounded-xl p-5 transition-all duration-200 slide-up" style="animation-delay: 0.25s">
+       <div class="flex items-center gap-3 mb-2">
+        <div class="w-10 h-10 rounded-lg bg-purple-600/20 flex items-center justify-center">
+         <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+         </svg>
+        </div><span class="text-gray-400 text-sm">Published</span>
+       </div>
+       <p id="publish-date" class="text-xl font-bold text-white">--</p>
+      </div>
+     </div><!-- Engagement Analysis -->
+     <div class="glass-card rounded-2xl p-6 mb-6 slide-up" style="animation-delay: 0.3s">
+      <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+       <div class="w-2 h-2 rounded-full bg-red-500 pulse-dot"></div> Engagement Analysis</h3>
+      <div class="grid md:grid-cols-3 gap-4">
+       <div class="bg-white/5 rounded-xl p-4">
+        <p class="text-gray-400 text-sm mb-1">Like Rate</p>
+        <p id="like-rate" class="text-xl font-bold text-green-400">--%</p>
+        <p class="text-gray-500 text-xs mt-1">Likes per 100 views</p>
+       </div>
+       <div class="bg-white/5 rounded-xl p-4">
+        <p class="text-gray-400 text-sm mb-1">Comment Rate</p>
+        <p id="comment-rate" class="text-xl font-bold text-blue-400">--%</p>
+        <p class="text-gray-500 text-xs mt-1">Comments per 1000 views</p>
+       </div>
+       <div class="bg-white/5 rounded-xl p-4">
+        <p class="text-gray-400 text-sm mb-1">Engagement Score</p>
+        <p id="engagement-score" class="text-xl font-bold text-purple-400">--</p>
+        <p class="text-gray-500 text-xs mt-1">Overall engagement rating</p>
+       </div>
+      </div>
+     </div><!-- Earnings Estimate Section -->
+     <div class="glass-card rounded-2xl p-6 mb-6 slide-up" style="animation-delay: 0.35s">
+      <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+       <div class="w-2 h-2 rounded-full bg-green-500 pulse-dot"></div> Estimated Earnings</h3>
+      <div class="grid md:grid-cols-2 gap-6">
+       <div>
+        <p class="text-gray-400 text-sm mb-3">Revenue Breakdown (Based on CPM Rates)</p>
+        <div class="space-y-3">
+         <div class="flex justify-between items-center p-3 bg-white/5 rounded-lg">
+          <span class="text-gray-300">Low Estimate (CPM: $2-4)</span> <span id="earnings-low" class="text-lg font-bold text-yellow-400">$--</span>
+         </div>
+         <div class="flex justify-between items-center p-3 bg-white/5 rounded-lg">
+          <span class="text-gray-300">Average Estimate (CPM: $5-8)</span> <span id="earnings-avg" class="text-lg font-bold text-green-400">$--</span>
+         </div>
+         <div class="flex justify-between items-center p-3 bg-white/5 rounded-lg">
+          <span class="text-gray-300">High Estimate (CPM: $10-20)</span> <span id="earnings-high" class="text-lg font-bold text-blue-400">$--</span>
+         </div>
+        </div>
+       </div>
+       <div>
+        <p class="text-gray-400 text-sm mb-3">Additional Metrics</p>
+        <div class="space-y-3">
+         <div class="p-3 bg-white/5 rounded-lg">
+          <p class="text-gray-500 text-xs mb-1">Est. Ad Impressions (RPM)</p>
+          <p id="rpm" class="text-lg font-bold text-purple-400">$-- per 1K views</p>
+         </div>
+         <div class="p-3 bg-white/5 rounded-lg">
+          <p class="text-gray-500 text-xs mb-1">YouTube Revenue Share</p>
+          <p class="text-lg font-bold text-red-400">55% Creator / 45% Platform</p>
+         </div>
+         <div class="p-3 bg-white/5 rounded-lg">
+          <p class="text-gray-500 text-xs mb-1">Your Estimated Cut</p>
+          <p id="creator-cut" class="text-lg font-bold text-emerald-400">$--</p>
+         </div>
+        </div>
+       </div>
+      </div>
+      <p class="text-gray-500 text-xs mt-4 pt-4 border-t border-white/10">💡 <strong>Note:</strong> These are estimates based on typical CPM/RPM rates. Actual earnings vary by content type, audience location, season, and more. This does not include other revenue streams like sponsorships or Super Chat.</p>
+     </div><!-- Tags Section -->
+     <div class="glass-card rounded-2xl p-6 slide-up" style="animation-delay: 0.4s">
+      <h3 class="text-lg font-semibold text-white mb-4">Video Tags</h3>
+      <div id="tags-container" class="flex flex-wrap gap-2"><span class="text-gray-500">No tags available</span>
+      </div>
+     </div>
+    </div><!-- Demo Notice -->
+    <div class="glass-card rounded-xl p-4 mt-8 border-yellow-500/30 bg-yellow-500/5">
+     <p class="text-yellow-400/80 text-sm text-center"><strong>Demo Mode:</strong> This analyzer simulates video data extraction. Actual YouTube API integration requires server-side implementation with API keys.</p>
+    </div>
+   </div>
+  </div>
+  <script>
+    // ========================================
+    // BACKEND CONFIGURATION
+    // ========================================
+    // Change this URL to your deployed backend endpoint
+    // Example: https://your-project.vercel.app/api/analyze
+    // The backend should accept ?videoId=XYZ and return YouTube data
+    const BACKEND_URL = 'https://your-backend.vercel.app/api/analyze';
+    
+    // Request timeout in milliseconds
+    const BACKEND_TIMEOUT = 8000;
+    
+    // ========================================
+
+    const defaultConfig = {
+      app_title: 'YouTube Video Analyzer',
+      placeholder_text: 'Paste YouTube URL here...',
+      primary_color: '#dc2626',
+      secondary_color: '#0f0f23',
+      text_color: '#ffffff',
+      accent_color: '#f87171',
+      surface_color: 'rgba(255, 255, 255, 0.03)'
+    };
+
+    let config = { ...defaultConfig };
+    let analysisHistory = [];
+    let isUsingSimulation = false;
+
+    // Element references
+    const urlInput = document.getElementById('url-input');
+    const analyzeBtn = document.getElementById('analyze-btn');
+    const results = document.getElementById('results');
+    const errorMessage = document.getElementById('error-message');
+
+    // Initialize Element SDK
+    window.elementSdk.init({
+      defaultConfig,
+      onConfigChange: async (newConfig) => {
+        config = { ...defaultConfig, ...newConfig };
+        
+        document.getElementById('app-title').textContent = config.app_title || defaultConfig.app_title;
+        urlInput.placeholder = config.placeholder_text || defaultConfig.placeholder_text;
+
+        // Apply colors
+        analyzeBtn.style.backgroundColor = config.primary_color || defaultConfig.primary_color;
+        document.querySelectorAll('.stat-card').forEach(card => {
+          card.style.borderColor = `${config.primary_color}20`;
+        });
+      },
+      mapToCapabilities: (cfg) => ({
+        recolorables: [
+          {
+            get: () => cfg.secondary_color || defaultConfig.secondary_color,
+            set: (v) => { cfg.secondary_color = v; window.elementSdk.setConfig({ secondary_color: v }); }
+          },
+          {
+            get: () => cfg.surface_color || defaultConfig.surface_color,
+            set: (v) => { cfg.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); }
+          },
+          {
+            get: () => cfg.text_color || defaultConfig.text_color,
+            set: (v) => { cfg.text_color = v; window.elementSdk.setConfig({ text_color: v }); }
+          },
+          {
+            get: () => cfg.primary_color || defaultConfig.primary_color,
+            set: (v) => { cfg.primary_color = v; window.elementSdk.setConfig({ primary_color: v }); }
+          },
+          {
+            get: () => cfg.accent_color || defaultConfig.accent_color,
+            set: (v) => { cfg.accent_color = v; window.elementSdk.setConfig({ accent_color: v }); }
+          }
+        ],
+        borderables: [],
+        fontEditable: undefined,
+        fontSizeable: undefined
+      }),
+      mapToEditPanelValues: (cfg) => new Map([
+        ['app_title', cfg.app_title || defaultConfig.app_title],
+        ['placeholder_text', cfg.placeholder_text || defaultConfig.placeholder_text]
+      ])
+    });
+
+    // Initialize Data SDK for history persistence
+    const dataHandler = {
+      onDataChanged(data) {
+        analysisHistory = data;
+      }
+    };
+
+    window.dataSdk.init(dataHandler).catch(err => {
+      console.error('Data SDK init failed:', err);
+    });
+
+    // Extract video ID from URL
+    function extractVideoId(url) {
+      const patterns = [
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([^&\n?#]+)/,
+        /^([a-zA-Z0-9_-]{11})$/
+      ];
+      
+      for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) return match[1];
+      }
+      return null;
+    }
+
+    // Format numbers
+    function formatNumber(num) {
+      if (num >= 1000000000) return (num / 1000000000).toFixed(1) + 'B';
+      if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+      if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+      return num.toLocaleString();
+    }
+
+    // Generate simulated video data
+    function generateVideoData(videoId) {
+      const titles = [
+        "Amazing Nature Documentary - 4K Wildlife",
+        "Learn Programming in 30 Days",
+        "Top 10 Travel Destinations 2024",
+        "Cooking Masterclass: Italian Cuisine",
+        "Tech Review: Latest Gadgets"
+      ];
+      
+      const channels = [
+        "Nature Explorer", "CodeMaster", "Travel Vibes", 
+        "Chef's Kitchen", "TechInsider"
+      ];
+      
+      const tagSets = [
+        ["nature", "wildlife", "documentary", "4k", "animals", "earth"],
+        ["programming", "coding", "tutorial", "learn", "developer"],
+        ["travel", "vacation", "destinations", "adventure", "explore"],
+        ["cooking", "recipe", "food", "cuisine", "chef"],
+        ["tech", "gadgets", "review", "technology", "innovation"]
+      ];
+
+      const idx = Math.abs(videoId.charCodeAt(0)) % 5;
+      const views = Math.floor(Math.random() * 50000000) + 100000;
+      const likes = Math.floor(views * (0.02 + Math.random() * 0.08));
+      const comments = Math.floor(views * (0.001 + Math.random() * 0.005));
+      
+      const publishDate = new Date();
+      publishDate.setDate(publishDate.getDate() - Math.floor(Math.random() * 365));
+
+      return {
+        id: videoId,
+        title: titles[idx],
+        channel: channels[idx],
+        description: "This is a simulated video description. In a real implementation, this would contain the actual video description from YouTube's API. The description often contains links, timestamps, and additional information about the video content.",
+        thumbnail: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+        views: views,
+        likes: likes,
+        comments: comments,
+        duration: `${Math.floor(Math.random() * 60)}:${String(Math.floor(Math.random() * 60)).padStart(2, '0')}`,
+        publishDate: publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        tags: tagSets[idx]
+      };
+    }
+
+    // Display results
+    function displayResults(data, isSimulated) {
+      document.getElementById('thumbnail').src = data.thumbnail;
+      document.getElementById('thumbnail').onerror = function() {
+        this.style.background = 'linear-gradient(135deg, #1a1a2e, #16213e)';
+        this.alt = 'Thumbnail unavailable';
+      };
+      document.getElementById('video-title').textContent = data.title;
+      document.getElementById('channel-name').textContent = data.channel;
+      document.getElementById('video-description').textContent = data.description;
+      document.getElementById('duration').textContent = data.duration;
+      
+      document.getElementById('view-count').textContent = formatNumber(data.views);
+      document.getElementById('like-count').textContent = formatNumber(data.likes);
+      document.getElementById('comment-count').textContent = formatNumber(data.comments);
+      document.getElementById('publish-date').textContent = data.publishDate;
+      
+      // Engagement calculations
+      const likeRate = ((data.likes / data.views) * 100).toFixed(2);
+      const commentRate = ((data.comments / data.views) * 1000).toFixed(2);
+      const engagementScore = Math.min(10, (parseFloat(likeRate) + parseFloat(commentRate) * 0.5)).toFixed(1);
+      
+      document.getElementById('like-rate').textContent = likeRate + '%';
+      document.getElementById('comment-rate').textContent = commentRate + '%';
+      document.getElementById('engagement-score').textContent = engagementScore + '/10';
+      
+      // Earnings Calculation
+      const lowCPM = 3; // Average of $2-4
+      const avgCPM = 6.5; // Average of $5-8
+      const highCPM = 15; // Average of $10-20
+      
+      const lowEarnings = (data.views / 1000) * lowCPM;
+      const avgEarnings = (data.views / 1000) * avgCPM;
+      const highEarnings = (data.views / 1000) * highCPM;
+      
+      // RPM (Revenue Per Mille) - typically 40-60% of CPM after YouTube's cut
+      const rpm = avgCPM * 0.55; // Average after revenue share
+      
+      // Creator's cut (55% of average)
+      const creatorCut = avgEarnings * 0.55;
+      
+      document.getElementById('earnings-low').textContent = '$' + lowEarnings.toFixed(2);
+      document.getElementById('earnings-avg').textContent = '$' + avgEarnings.toFixed(2);
+      document.getElementById('earnings-high').textContent = '$' + highEarnings.toFixed(2);
+      document.getElementById('rpm').textContent = '$' + rpm.toFixed(2) + ' per 1K views';
+      document.getElementById('creator-cut').textContent = '$' + creatorCut.toFixed(2);
+      
+      // Tags
+      const tagsContainer = document.getElementById('tags-container');
+      tagsContainer.innerHTML = data.tags.map(tag => 
+        `<span class="px-3 py-1.5 bg-white/10 text-gray-300 rounded-lg text-sm hover:bg-white/20 transition-colors cursor-default">#${tag}</span>`
+      ).join('');
+      
+      // Show data source notice
+      const notice = document.getElementById('data-source-notice');
+      const noticeText = document.getElementById('data-source-text');
+      
+      if (isSimulated) {
+        noticeText.textContent = '⚠️ Using simulated data. Backend unavailable. Connect backend for real YouTube metrics.';
+        noticeText.style.color = '#fbbf24';
+        notice.style.borderColor = 'rgba(251, 191, 36, 0.3)';
+        notice.style.backgroundColor = 'rgba(251, 191, 36, 0.05)';
+      } else {
+        noticeText.textContent = '✓ Showing real YouTube data from your backend.';
+        noticeText.style.color = '#4ade80';
+        notice.style.borderColor = 'rgba(74, 222, 128, 0.3)';
+        notice.style.backgroundColor = 'rgba(74, 222, 128, 0.05)';
+      }
+      notice.classList.remove('hidden');
+      
+      results.classList.remove('hidden');
+      results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Fetch video data from backend with fallback to simulation
+    async function analyzeVideo(videoId) {
+      isUsingSimulation = false;
+      
+      try {
+        // Set loading state
+        analyzeBtn.disabled = true;
+        analyzeBtn.innerHTML = `
+          <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          Fetching real data...
+        `;
+        
+        // Try to fetch from backend
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT);
+        
+        try {
+          const response = await fetch(`${BACKEND_URL}?videoId=${videoId}`, {
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+          
+          if (response.ok) {
+            const youtubeData = await response.json();
+            const videoData = parseYouTubeData(youtubeData, videoId);
+            displayResults(videoData, false);
+            
+            // Save to history
+            saveToHistory(videoData, 'api');
+            
+            analyzeBtn.disabled = false;
+            analyzeBtn.innerHTML = `
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              Analyze
+            `;
+            return;
+          }
+        } catch (fetchError) {
+          clearTimeout(timeoutId);
+          // Backend failed, will fall through to simulation
+        }
+      } catch (error) {
+        console.error('Backend error:', error);
+      }
+      
+      // Fallback to simulation
+      isUsingSimulation = true;
+      const videoData = generateVideoData(videoId);
+      displayResults(videoData, true);
+      
+      // Save to history
+      saveToHistory(videoData, 'simulated');
+      
+      analyzeBtn.disabled = false;
+      analyzeBtn.innerHTML = `
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        Analyze
+      `;
+    }
+
+    // Parse real YouTube API data
+    function parseYouTubeData(youtubeData, videoId) {
+      const snippet = youtubeData.snippet || {};
+      const statistics = youtubeData.statistics || {};
+      const contentDetails = youtubeData.contentDetails || {};
+      
+      // Parse duration (ISO 8601 format: PT1H2M3S)
+      const duration = parseDuration(contentDetails.duration || 'PT0S');
+      
+      // Parse publish date
+      const publishDate = new Date(snippet.publishedAt || Date.now());
+      
+      return {
+        id: videoId,
+        title: snippet.title || 'Untitled Video',
+        channel: snippet.channelTitle || 'Unknown Channel',
+        description: snippet.description || 'No description available',
+        thumbnail: snippet.thumbnails?.maxres?.url || snippet.thumbnails?.high?.url || `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+        views: parseInt(statistics.viewCount || 0),
+        likes: parseInt(statistics.likeCount || 0),
+        comments: parseInt(statistics.commentCount || 0),
+        duration: duration,
+        publishDate: publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
+        tags: snippet.tags || []
+      };
+    }
+
+    // Parse ISO 8601 duration to MM:SS format
+    function parseDuration(isoDuration) {
+      const regex = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/;
+      const match = isoDuration.match(regex);
+      
+      if (!match) return '0:00';
+      
+      const hours = parseInt(match[1] || 0);
+      const minutes = parseInt(match[2] || 0);
+      const seconds = parseInt(match[3] || 0);
+      
+      if (hours > 0) {
+        return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      }
+      return `${minutes}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    // Save analysis to history via Data SDK
+    async function saveToHistory(videoData, dataSource) {
+      if (!window.dataSdk) return;
+      
+      const record = {
+        videoId: videoData.id,
+        title: videoData.title,
+        views: videoData.views,
+        likes: videoData.likes,
+        comments: videoData.comments,
+        analyzedAt: new Date().toISOString(),
+        dataSource: dataSource
+      };
+      
+      const result = await window.dataSdk.create(record);
+      if (!result.isOk) {
+        console.error('Failed to save to history:', result.error);
+      }
+    }
+
+    // Analyze button handler
+    analyzeBtn.addEventListener('click', () => {
+      const url = urlInput.value.trim();
+      errorMessage.classList.add('hidden');
+      document.getElementById('data-source-notice').classList.add('hidden');
+      
+      if (!url) {
+        errorMessage.textContent = 'Please enter a YouTube URL';
+        errorMessage.classList.remove('hidden');
+        return;
+      }
+      
+      const videoId = extractVideoId(url);
+      
+      if (!videoId) {
+        errorMessage.textContent = 'Invalid YouTube URL. Please enter a valid video link.';
+        errorMessage.classList.remove('hidden');
+        return;
+      }
+      
+      analyzeVideo(videoId);
+    });
+
+    // Enter key handler
+    urlInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        analyzeBtn.click();
+      }
+    });
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9d1bf1b0c35da28f',t:'MTc3MTczNjY4MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
