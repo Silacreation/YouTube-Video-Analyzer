@@ -38,6 +38,18 @@
       transform: translateY(-2px);
       border-color: rgba(255, 0, 0, 0.3);
     }
+    .data-source-notice {
+      transition: all 0.3s ease;
+      border-left-width: 4px;
+    }
+    .data-source-real {
+      border-left-color: #10b981;
+      background-color: rgba(16, 185, 129, 0.1);
+    }
+    .data-source-simulated {
+      border-left-color: #f59e0b;
+      background-color: rgba(245, 158, 11, 0.1);
+    }
   </style>
   <style>body { box-sizing: border-box; }</style>
   <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
@@ -61,7 +73,19 @@
        </svg> Analyze </button>
      </div>
      <p id="error-message" class="text-red-400 text-sm mt-3 hidden"></p>
-    </div><!-- Results Section -->
+    </div>
+    
+    <!-- DATA SOURCE NOTICE (NEW) -->
+    <div id="data-source-notice" class="glass-card rounded-xl p-4 mb-8 hidden data-source-simulated">
+      <p id="data-source-text" class="text-yellow-400 text-sm flex items-start gap-2">
+        <svg class="w-4 h-4 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        <span>Using simulated data. Connect your backend for real YouTube metrics.</span>
+      </p>
+    </div>
+    
+    <!-- Results Section -->
     <div id="results" class="hidden"><!-- Video Preview -->
      <div class="glass-card rounded-2xl p-6 mb-6 slide-up">
       <div class="flex gap-6">
@@ -181,23 +205,20 @@
      </div>
     </div><!-- Demo Notice -->
     <div class="glass-card rounded-xl p-4 mt-8 border-yellow-500/30 bg-yellow-500/5">
-     <p class="text-yellow-400/80 text-sm text-center"><strong>Demo Mode:</strong> This analyzer simulates video data extraction. Actual YouTube API integration requires server-side implementation with API keys.</p>
+     <p class="text-yellow-400/80 text-sm text-center"><strong>💡 Setup Required:</strong> Deploy a backend service to connect to YouTube API. <a href="https://github.com/yourusername/youtube-analyzer-backend" target="_blank" class="underline hover:text-yellow-300">See setup guide</a></p>
     </div>
    </div>
   </div>
   <script>
     // ========================================
-    // BACKEND CONFIGURATION
+    // BACKEND CONFIGURATION - UPDATE THIS URL!
     // ========================================
-    // Change this URL to your deployed backend endpoint
-    // Example: https://your-project.vercel.app/api/analyze
-    // The backend should accept ?videoId=XYZ and return YouTube data
+    // ⚠️ REPLACE WITH YOUR ACTUAL DEPLOYED BACKEND URL ⚠️
+    // Example: 'https://youtube-analyzer-backend.vercel.app/api/analyze'
     const BACKEND_URL = 'https://your-backend.vercel.app/api/analyze';
     
-    // Request timeout in milliseconds
+    // Request timeout in milliseconds (8 seconds)
     const BACKEND_TIMEOUT = 8000;
-    
-    // ========================================
 
     const defaultConfig = {
       app_title: 'YouTube Video Analyzer',
@@ -211,13 +232,15 @@
 
     let config = { ...defaultConfig };
     let analysisHistory = [];
-    let isUsingSimulation = false;
+    let currentVideoData = null;
 
     // Element references
     const urlInput = document.getElementById('url-input');
     const analyzeBtn = document.getElementById('analyze-btn');
     const results = document.getElementById('results');
     const errorMessage = document.getElementById('error-message');
+    const dataSourceNotice = document.getElementById('data-source-notice');
+    const dataSourceText = document.getElementById('data-source-text');
 
     // Initialize Element SDK
     window.elementSdk.init({
@@ -300,7 +323,51 @@
       return num.toLocaleString();
     }
 
-    // Generate simulated video data
+    // Parse ISO 8601 duration to readable format (PT1H23M45S → 1:23:45)
+    function parseDuration(isoDuration) {
+      const match = isoDuration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+      if (!match) return '0:00';
+      
+      const hours = parseInt(match[1] || 0);
+      const minutes = parseInt(match[2] || 0);
+      const seconds = parseInt(match[3] || 0);
+      
+      if (hours > 0) {
+        return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      }
+      return `${minutes}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    // Parse real YouTube API response into our data format
+    function parseYouTubeData(youtubeItem, videoId) {
+      const snippet = youtubeItem.snippet || {};
+      const statistics = youtubeItem.statistics || {};
+      const contentDetails = youtubeItem.contentDetails || {};
+      
+      return {
+        id: videoId,
+        title: snippet.title || 'Untitled Video',
+        channel: snippet.channelTitle || 'Unknown Channel',
+        description: snippet.description?.substring(0, 300) + (snippet.description?.length > 300 ? '...' : '') || 'No description available',
+        // FIXED: Removed space in URL template literal
+        thumbnail: snippet.thumbnails?.maxres?.url || 
+                  snippet.thumbnails?.high?.url || 
+                  snippet.thumbnails?.medium?.url || 
+                  `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+        views: parseInt(statistics.viewCount || 0),
+        likes: parseInt(statistics.likeCount || 0),
+        comments: parseInt(statistics.commentCount || 0),
+        duration: parseDuration(contentDetails.duration || 'PT0M'),
+        publishDate: new Date(snippet.publishedAt).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        }),
+        tags: snippet.tags || ['untagged']
+      };
+    }
+
+    // Generate simulated video data (fallback mode)
     function generateVideoData(videoId) {
       const titles = [
         "Amazing Nature Documentary - 4K Wildlife",
@@ -336,6 +403,7 @@
         title: titles[idx],
         channel: channels[idx],
         description: "This is a simulated video description. In a real implementation, this would contain the actual video description from YouTube's API. The description often contains links, timestamps, and additional information about the video content.",
+        // FIXED: Removed space in URL template literal
         thumbnail: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
         views: views,
         likes: likes,
@@ -346,13 +414,19 @@
       };
     }
 
-    // Display results
+    // Display results in UI
     function displayResults(data, isSimulated) {
-      document.getElementById('thumbnail').src = data.thumbnail;
-      document.getElementById('thumbnail').onerror = function() {
-        this.style.background = 'linear-gradient(135deg, #1a1a2e, #16213e)';
+      currentVideoData = data;
+      
+      // Thumbnail with error handling
+      const thumbImg = document.getElementById('thumbnail');
+      thumbImg.src = data.thumbnail;
+      thumbImg.onerror = function() {
+        this.src = 'https://via.placeholder.com/320x180/1a1a2e/ffffff?text=No+Thumbnail';
         this.alt = 'Thumbnail unavailable';
       };
+      
+      // Basic info
       document.getElementById('video-title').textContent = data.title;
       document.getElementById('channel-name').textContent = data.channel;
       document.getElementById('video-description').textContent = data.description;
@@ -381,10 +455,7 @@
       const avgEarnings = (data.views / 1000) * avgCPM;
       const highEarnings = (data.views / 1000) * highCPM;
       
-      // RPM (Revenue Per Mille) - typically 40-60% of CPM after YouTube's cut
-      const rpm = avgCPM * 0.55; // Average after revenue share
-      
-      // Creator's cut (55% of average)
+      const rpm = avgCPM * 0.55; // After YouTube's 45% cut
       const creatorCut = avgEarnings * 0.55;
       
       document.getElementById('earnings-low').textContent = '$' + lowEarnings.toFixed(2);
@@ -400,139 +471,32 @@
       ).join('');
       
       // Show data source notice
-      const notice = document.getElementById('data-source-notice');
-      const noticeText = document.getElementById('data-source-text');
+      dataSourceNotice.classList.remove('hidden', 'data-source-real', 'data-source-simulated');
       
       if (isSimulated) {
-        noticeText.textContent = '⚠️ Using simulated data. Backend unavailable. Connect backend for real YouTube metrics.';
-        noticeText.style.color = '#fbbf24';
-        notice.style.borderColor = 'rgba(251, 191, 36, 0.3)';
-        notice.style.backgroundColor = 'rgba(251, 191, 36, 0.05)';
+        dataSourceNotice.classList.add('data-source-simulated');
+        dataSourceText.innerHTML = `
+          <svg class="w-4 h-4 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+          Using simulated data. <strong>Deploy your backend</strong> for real YouTube metrics.
+        `;
       } else {
-        noticeText.textContent = '✓ Showing real YouTube data from your backend.';
-        noticeText.style.color = '#4ade80';
-        notice.style.borderColor = 'rgba(74, 222, 128, 0.3)';
-        notice.style.backgroundColor = 'rgba(74, 222, 128, 0.05)';
+        dataSourceNotice.classList.add('data-source-real');
+        dataSourceText.innerHTML = `
+          <svg class="w-4 h-4 mt-0.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+          Showing real YouTube data from your backend.
+        `;
       }
-      notice.classList.remove('hidden');
       
+      // Show results
       results.classList.remove('hidden');
       results.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
-    // Fetch video data from backend with fallback to simulation
-    async function analyzeVideo(videoId) {
-      isUsingSimulation = false;
-      
-      try {
-        // Set loading state
-        analyzeBtn.disabled = true;
-        analyzeBtn.innerHTML = `
-          <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-          Fetching real data...
-        `;
-        
-        // Try to fetch from backend
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT);
-        
-        try {
-          const response = await fetch(`${BACKEND_URL}?videoId=${videoId}`, {
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (response.ok) {
-            const youtubeData = await response.json();
-            const videoData = parseYouTubeData(youtubeData, videoId);
-            displayResults(videoData, false);
-            
-            // Save to history
-            saveToHistory(videoData, 'api');
-            
-            analyzeBtn.disabled = false;
-            analyzeBtn.innerHTML = `
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-              </svg>
-              Analyze
-            `;
-            return;
-          }
-        } catch (fetchError) {
-          clearTimeout(timeoutId);
-          // Backend failed, will fall through to simulation
-        }
-      } catch (error) {
-        console.error('Backend error:', error);
-      }
-      
-      // Fallback to simulation
-      isUsingSimulation = true;
-      const videoData = generateVideoData(videoId);
-      displayResults(videoData, true);
-      
-      // Save to history
-      saveToHistory(videoData, 'simulated');
-      
-      analyzeBtn.disabled = false;
-      analyzeBtn.innerHTML = `
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-        </svg>
-        Analyze
-      `;
-    }
-
-    // Parse real YouTube API data
-    function parseYouTubeData(youtubeData, videoId) {
-      const snippet = youtubeData.snippet || {};
-      const statistics = youtubeData.statistics || {};
-      const contentDetails = youtubeData.contentDetails || {};
-      
-      // Parse duration (ISO 8601 format: PT1H2M3S)
-      const duration = parseDuration(contentDetails.duration || 'PT0S');
-      
-      // Parse publish date
-      const publishDate = new Date(snippet.publishedAt || Date.now());
-      
-      return {
-        id: videoId,
-        title: snippet.title || 'Untitled Video',
-        channel: snippet.channelTitle || 'Unknown Channel',
-        description: snippet.description || 'No description available',
-        thumbnail: snippet.thumbnails?.maxres?.url || snippet.thumbnails?.high?.url || `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
-        views: parseInt(statistics.viewCount || 0),
-        likes: parseInt(statistics.likeCount || 0),
-        comments: parseInt(statistics.commentCount || 0),
-        duration: duration,
-        publishDate: publishDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }),
-        tags: snippet.tags || []
-      };
-    }
-
-    // Parse ISO 8601 duration to MM:SS format
-    function parseDuration(isoDuration) {
-      const regex = /PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/;
-      const match = isoDuration.match(regex);
-      
-      if (!match) return '0:00';
-      
-      const hours = parseInt(match[1] || 0);
-      const minutes = parseInt(match[2] || 0);
-      const seconds = parseInt(match[3] || 0);
-      
-      if (hours > 0) {
-        return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-      }
-      return `${minutes}:${String(seconds).padStart(2, '0')}`;
-    }
-
-    // Save analysis to history via Data SDK
+    // Save analysis to history
     async function saveToHistory(videoData, dataSource) {
       if (!window.dataSdk) return;
       
@@ -543,20 +507,110 @@
         likes: videoData.likes,
         comments: videoData.comments,
         analyzedAt: new Date().toISOString(),
-        dataSource: dataSource
+        dataSource: dataSource // 'api' or 'simulated'
       };
       
-      const result = await window.dataSdk.create(record);
-      if (!result.isOk) {
-        console.error('Failed to save to history:', result.error);
+      try {
+        const result = await window.dataSdk.create(record);
+        if (!result.isOk) {
+          console.warn('Failed to save history:', result.error);
+        }
+      } catch (err) {
+        console.warn('History save error:', err);
       }
+    }
+
+    // Main analysis function with backend fallback
+    async function analyzeVideo(videoId) {
+      analyzeBtn.disabled = true;
+      analyzeBtn.innerHTML = `
+        <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        ${BACKEND_URL.includes('your-backend') ? 'Using simulation...' : 'Fetching real data...'}
+      `;
+      
+      errorMessage.classList.add('hidden');
+      dataSourceNotice.classList.add('hidden');
+      
+      // CRITICAL: Check if backend URL is configured
+      if (BACKEND_URL.includes('your-backend')) {
+        // Skip backend call - use simulation immediately
+        const videoData = generateVideoData(videoId);
+        displayResults(videoData, true);
+        await saveToHistory(videoData, 'simulated');
+        
+        analyzeBtn.disabled = false;
+        analyzeBtn.innerHTML = `
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+          Analyze
+        `;
+        return;
+      }
+      
+      // Try to fetch from backend with timeout
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), BACKEND_TIMEOUT);
+        
+        const response = await fetch(`${BACKEND_URL}?videoId=${videoId}`, {
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          // YouTube API returns array of items
+          if (data.items && data.items.length > 0) {
+            const videoData = parseYouTubeData(data.items[0], videoId);
+            displayResults(videoData, false);
+            await saveToHistory(videoData, 'api');
+            
+            analyzeBtn.disabled = false;
+            analyzeBtn.innerHTML = `
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+              Analyze
+            `;
+            return;
+          }
+        }
+        
+        // If response not ok or no items, fall through to simulation
+        throw new Error(`YouTube API returned status ${response.status}`);
+        
+      } catch (error) {
+        console.warn('Backend fetch failed:', error.message);
+        // Fall through to simulation mode
+      }
+      
+      // Fallback to simulation
+      const videoData = generateVideoData(videoId);
+      displayResults(videoData, true);
+      await saveToHistory(videoData, 'simulated');
+      
+      analyzeBtn.disabled = false;
+      analyzeBtn.innerHTML = `
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        Analyze
+      `;
     }
 
     // Analyze button handler
     analyzeBtn.addEventListener('click', () => {
       const url = urlInput.value.trim();
       errorMessage.classList.add('hidden');
-      document.getElementById('data-source-notice').classList.add('hidden');
       
       if (!url) {
         errorMessage.textContent = 'Please enter a YouTube URL';
@@ -567,7 +621,7 @@
       const videoId = extractVideoId(url);
       
       if (!videoId) {
-        errorMessage.textContent = 'Invalid YouTube URL. Please enter a valid video link.';
+        errorMessage.textContent = 'Invalid YouTube URL. Please enter a valid video link (e.g., https://youtube.com/watch?v=VIDEO_ID)';
         errorMessage.classList.remove('hidden');
         return;
       }
@@ -577,10 +631,13 @@
 
     // Enter key handler
     urlInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && !analyzeBtn.disabled) {
         analyzeBtn.click();
       }
     });
+    
+    // Pre-fill example URL for testing
+    urlInput.value = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
   </script>
  <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9d1bf1b0c35da28f',t:'MTc3MTczNjY4MS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
